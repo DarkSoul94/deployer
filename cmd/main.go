@@ -4,83 +4,63 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
+	"github.com/DarkSoul94/deployer/menu"
 	"github.com/DarkSoul94/deployer/template"
 )
 
 func main() {
-	var (
-		service_name, filePath, wdPath string
-		err                            error
-	)
+	serviceData := menu.RunMenu()
 
-	service_name = ScanServiceName()
-	filePath, wdPath = ScanPath()
+	fileContent := template.CreateTemplate(serviceData)
+	CreateFile(serviceData.Name, fileContent)
 
-	service_file, err := os.Create(fmt.Sprintf("/etc/systemd/system/%s.service", service_name))
+	OsExec(serviceData.Name)
+}
+
+func CreateFile(serviceName, serviceData string) {
+	service_file, err := os.Create(fmt.Sprintf("/etc/systemd/system/%s.service", serviceName))
 	if err != nil {
 		panic(err)
 	}
 	defer service_file.Close()
 
-	service_file.WriteString(template.CreateTemplate(service_name, filePath, wdPath))
+	service_file.WriteString(serviceData)
+}
+
+func OsExec(serviceName string) {
+	var err error
 
 	reload := exec.Command("systemctl", "daemon-reload")
 	err = reload.Run()
 	if err != nil {
 		fmt.Println(err)
+	} else {
+		fmt.Println("- systemctl reload")
 	}
 
-	start := exec.Command("systemctl", "start", service_name)
+	enable := exec.Command("systemctl", "enable", serviceName)
+	err = enable.Run()
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println("- service enable")
+	}
+
+	start := exec.Command("systemctl", "start", serviceName)
 	err = start.Run()
 	if err != nil {
 		fmt.Println(err)
-	}
-}
-
-func ScanServiceName() string {
-	var service_name string
-
-name:
-	fmt.Print("Введите имя сервиса: ")
-	fmt.Fscan(os.Stdin, &service_name)
-
-	if len(service_name) == 0 {
-		fmt.Println("Имя сервиса не должно быть пустым")
-		goto name
+	} else {
+		fmt.Println("- service start")
 	}
 
-	if _, err := os.Stat(fmt.Sprintf("/etc/systemd/system/%s.service", service_name)); err == nil {
-		fmt.Println("Сервис с таким именем уже существует")
-		goto name
+	status := exec.Command("systemctl", "status", serviceName)
+	stdout, err := status.Output()
+
+	if err != nil {
+		fmt.Println(err.Error())
 	}
 
-	return service_name
-}
-
-func ScanPath() (string, string) {
-	var (
-		filePath, wdPath string
-	)
-
-path:
-	fmt.Print("Введите путь к исполняемому файлу: ")
-	fmt.Fscan(os.Stdin, &filePath)
-	if len(filePath) == 0 {
-		fmt.Println("Путь не может быть пустым")
-		goto path
-	}
-
-	if _, err := os.Stat(fmt.Sprintf("%s", filePath)); os.IsNotExist(err) {
-		fmt.Println("Указаного файла не существует")
-		goto path
-	}
-
-	s := strings.Split(filePath, "/")
-	for i := 0; i < len(s)-1; i++ {
-		wdPath += s[i] + "/"
-	}
-
-	return filePath, wdPath
+	fmt.Print(string(stdout))
 }

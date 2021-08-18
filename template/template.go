@@ -3,11 +3,13 @@ package template
 import (
 	"strings"
 	"text/template"
+
+	"github.com/DarkSoul94/deployer/models"
 )
 
 type String string
 
-func (s String) Format(data map[string]interface{}) (out string, err error) {
+func (s String) format(data map[string]interface{}) (out string, err error) {
 	t := template.Must(template.New("").Parse(string(s)))
 	builder := &strings.Builder{}
 	if err = t.Execute(builder, data); err != nil {
@@ -17,7 +19,7 @@ func (s String) Format(data map[string]interface{}) (out string, err error) {
 	return
 }
 
-func CreateTemplate(name, pathToFile, workingDirectory string) string {
+func CreateTemplate(serviceData models.ServiceData) string {
 	const template string = `
 [Unit]
 Description=a "{{.Name}}" service
@@ -30,8 +32,8 @@ Restart=on-failure
 RestartSec=5
 ExecStart={{.Path}}
 
-User=root
-Group=root
+User={{.User}}
+Group={{.Group}}
 		
 WorkingDirectory={{.Directory}}
 		
@@ -39,12 +41,14 @@ WorkingDirectory={{.Directory}}
 WantedBy=multi-user.target`
 
 	data := map[string]interface{}{
-		"Name":      name,
-		"Path":      pathToFile,
-		"Directory": workingDirectory,
+		"Name":      serviceData.Name,
+		"Path":      serviceData.PathToFile,
+		"Directory": serviceData.PathToWorkingDirectory,
+		"User":      serviceData.User,
+		"Group":     serviceData.UserGroup,
 	}
 
-	s, _ := String(template).Format(data)
+	s, _ := String(template).format(data)
 
 	return s
 }
